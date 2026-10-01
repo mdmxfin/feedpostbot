@@ -40,6 +40,12 @@ class main_module
 				trigger_error('FORM_INVALID');
 			}
 			$fetched = $feedpostbot->fetch_all();
+			$result = $feedpostbot->get_run_result();
+			if (!empty($result['locked']))
+			{
+				// Another run (usually cron) is processing the feeds: this request did nothing.
+				trigger_error($user->lang('FPB_LOCK_ACTIVE') . adm_back_link($this->u_action), E_USER_WARNING);
+			}
 			if ($fetched > 0)
 			{
 				$message = $user->lang('FPB_ACP_FETCHED_ITEMS', $fetched);
@@ -47,6 +53,10 @@ class main_module
 			else
 			{
 				$message = $user->lang('FPB_ACP_NO_FETCHED_ITEMS');
+			}
+			if (!empty($result['updated']))
+			{
+				$message .= ' ' . $user->lang('FPB_ACP_UPDATED_ITEMS', (int) $result['updated']);
 			}
 			trigger_error($message . adm_back_link($this->u_action));
 		}
@@ -107,6 +117,9 @@ class main_module
 					'timeout' => 3,
 					'curdate' => 0,
 					'append_link' => 1,
+					'update_existing' => 0,
+					'update_reply' => 0,
+					'recreate_deleted' => 0,
 					'latest' => array(
 						'link' => '',
 						'pubDate' => '',
@@ -146,7 +159,8 @@ class main_module
 								trigger_error($user->lang('FPB_FEED_URL_INVALID') . adm_back_link($this->u_action), E_USER_WARNING);
 							}
 							$type = $detected_type;
-							unset($source['handled']);
+							// A new URL is a new feed: history and tracked topics are not inherited.
+							unset($source['handled'], $source['source_uid']);
 							$source['latest'] = array('guid' => '', 'link' => '', 'pubDate' => 0);
 						}
 						$new_state[$id] = array_merge($source, array(
@@ -159,6 +173,9 @@ class main_module
 							'timeout' => $request->variable($id . '_timeout', 3),
 							'curdate' => strlen($request->variable($id . '_curdate', '')) > 0 ? 1 : 0,
 							'append_link' => strlen($request->variable($id . '_append_link', '')) > 0 ? 1 : 0,
+							'update_existing' => strlen($request->variable($id . '_update_existing', '')) > 0 ? 1 : 0,
+							'update_reply' => strlen($request->variable($id . '_update_reply', '')) > 0 ? 1 : 0,
+							'recreate_deleted' => strlen($request->variable($id . '_recreate_deleted', '')) > 0 ? 1 : 0,
 							'latest' => $source['latest'],
 						));
 					}
@@ -220,6 +237,9 @@ class main_module
 					'TIMEOUT'	=> $source['timeout'],
 					'S_CURDATE'	=> empty($source['curdate']) ? false : true,
 					'S_APPEND_LINK'	=> empty($source['append_link']) ? false : true,
+					'S_UPDATE_EXISTING'		=> !empty($source['update_existing']),
+					'S_UPDATE_REPLY'		=> !empty($source['update_reply']),
+					'S_RECREATE_DELETED'	=> !empty($source['recreate_deleted']),
 				);
 
 				/**

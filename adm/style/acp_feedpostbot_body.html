@@ -92,6 +92,7 @@
 					<th>{{ lang('FPB_TIMEOUT') }}</th>
 					<th>{{ lang('FPB_CURDATE') }}</th>
 					<th>{{ lang('FPB_APPEND_LINK') }}</th>
+					<th>{{ lang('FPB_UPDATES') }}</th>
 					<th>{{ lang('ACTION') }}</th>
 				</tr>
 			</thead>
@@ -113,11 +114,16 @@
 					<td class="text-center"><input type="number" min="1" max="60" name="{{ feed.ID }}_timeout" value="{{ feed.TIMEOUT }}" class="inputbox autowidth" size="4" /></td>
 					<td class="text-center"><input type="checkbox" class="radio" name="{{ feed.ID }}_curdate"{% if feed.S_CURDATE %} checked="checked"{% endif %} title="{{ lang('FPB_CURDATE_EXPLAIN')|e('html_attr') }}" /></td>
 					<td class="text-center"><input type="checkbox" class="radio" name="{{ feed.ID }}_append_link"{% if feed.S_APPEND_LINK %} checked="checked"{% endif %} title="{{ lang('FPB_APPEND_LINK_EXPLAIN')|e('html_attr') }}" /></td>
+					<td style="white-space: nowrap;">
+						<label title="{{ lang('FPB_UPDATE_EXISTING_EXPLAIN')|e('html_attr') }}"><input type="checkbox" class="radio" name="{{ feed.ID }}_update_existing"{% if feed.S_UPDATE_EXISTING %} checked="checked"{% endif %} /> {{ lang('FPB_UPDATE_EXISTING') }}</label><br />
+						<label title="{{ lang('FPB_UPDATE_REPLY_EXPLAIN')|e('html_attr') }}"><input type="checkbox" class="radio" name="{{ feed.ID }}_update_reply"{% if feed.S_UPDATE_REPLY %} checked="checked"{% endif %} /> {{ lang('FPB_UPDATE_REPLY') }}</label><br />
+						<label title="{{ lang('FPB_RECREATE_DELETED_EXPLAIN')|e('html_attr') }}"><input type="checkbox" class="radio" name="{{ feed.ID }}_recreate_deleted"{% if feed.S_RECREATE_DELETED %} checked="checked"{% endif %} /> {{ lang('FPB_RECREATE_DELETED') }}</label>
+					</td>
 					<td class="text-center"><a href="{{ feed.U_DELETE }}" data-ajax="row_delete">{{ ICON_DELETE|raw }}</a></td>
 				</tr>
 			{% else %}
 				<tr>
-					<td colspan="11" class="row3 text-center">{{ lang('FPB_NO_FEEDS') }}</td>
+					<td colspan="12" class="row3 text-center">{{ lang('FPB_NO_FEEDS') }}</td>
 				</tr>
 			{% endfor %}
 			</tbody>
@@ -178,6 +184,18 @@
 			<tr class="row1">
 				<td><strong>{{ lang('FPB_APPEND_LINK') }}</strong></td>
 				<td>{{ lang('FPB_APPEND_LINK_EXPLAIN') }}</td>
+			</tr>
+			<tr class="row2">
+				<td><strong>{{ lang('FPB_UPDATES') }}{{ lang('COLON') }} {{ lang('FPB_UPDATE_EXISTING') }}</strong></td>
+				<td>{{ lang('FPB_UPDATE_EXISTING_EXPLAIN') }}</td>
+			</tr>
+			<tr class="row1">
+				<td><strong>{{ lang('FPB_UPDATES') }}{{ lang('COLON') }} {{ lang('FPB_UPDATE_REPLY') }}</strong></td>
+				<td>{{ lang('FPB_UPDATE_REPLY_EXPLAIN') }}</td>
+			</tr>
+			<tr class="row2">
+				<td><strong>{{ lang('FPB_UPDATES') }}{{ lang('COLON') }} {{ lang('FPB_RECREATE_DELETED') }}</strong></td>
+				<td>{{ lang('FPB_RECREATE_DELETED_EXPLAIN') }}</td>
 			</tr>
 		</tbody>
 	</table>

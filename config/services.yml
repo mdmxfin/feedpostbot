@@ -12,7 +12,15 @@ services:
             - '%core.root_path%'
             - '%core.php_ext%'
             - '@dispatcher'
-    
+            - '@ger.feedpostbot.classes.item_tracker'
+            - '@text_formatter.utils'
+
+    ger.feedpostbot.classes.item_tracker:
+        class: ger\feedpostbot\classes\item_tracker
+        arguments:
+            - '@dbal.conn'
+            - '%core.table_prefix%feedpostbot_items'
+
     ger.feedpostbot.cron.task.feedpostbot_cron:
         class: ger\feedpostbot\cron\task\feedpostbot_cron
         arguments:
