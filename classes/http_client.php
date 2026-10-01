@@ -7,7 +7,7 @@
 
 namespace ger\feedpostbot\classes;
 
-/** Fetch public HTTP feeds without delegating DNS or redirects to the parser. */
+/** Fetch HTTP feeds without delegating DNS or redirects to the parser. Local and private hosts are allowed. */
 class http_client
 {
 	public const MAX_BYTES = 5242880;
@@ -20,7 +20,7 @@ class http_client
 		return $this->final_url;
 	}
 
-	/** Validate syntax and literal addresses; DNS is checked again when connecting. */
+	/** Validate syntax: HTTP(S), no credentials, a canonical IP address or a host name. */
 	public static function valid_url($url)
 	{
 		if (!is_string($url) || preg_match('/[\x00-\x20\x7f\\\\]/', $url) || !filter_var($url, FILTER_VALIDATE_URL))
@@ -35,47 +35,15 @@ class http_client
 		$host = strtolower(trim($parts['host'], '[]'));
 		if (filter_var($host, FILTER_VALIDATE_IP))
 		{
-			return self::public_ip($host);
+			return true;
 		}
-		// Reject abbreviated, integer, hexadecimal and octal IPv4 representations.
-		return (bool) preg_match('/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]*\.?$/iD', $host);
+		// Host names, including single-label ones such as localhost. Abbreviated, integer,
+		// hexadecimal and octal IPv4 representations are still rejected: the last label must
+		// start with a letter.
+		return (bool) preg_match('/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z][a-z0-9-]*\.?$/iD', $host);
 	}
 
-	public static function public_ip($ip)
-	{
-		if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE))
-		{
-			return false;
-		}
-		$packed = inet_pton($ip);
-		if (strlen($packed) === 16)
-		{
-			// Only global unicast, excluding transition, special-purpose and documentation ranges.
-			return self::in_subnet($ip, '2000::', 3) && !self::in_subnet($ip, '2001::', 23)
-				&& !self::in_subnet($ip, '2001:db8::', 32) && !self::in_subnet($ip, '2002::', 16)
-				&& !self::in_subnet($ip, '3fff::', 20);
-		}
-		foreach (array(array('0.0.0.0', 8), array('100.64.0.0', 10), array('192.0.0.0', 24), array('192.0.2.0', 24), array('192.88.99.0', 24), array('198.18.0.0', 15), array('198.51.100.0', 24), array('203.0.113.0', 24), array('224.0.0.0', 3)) as $range)
-		{
-			if (self::in_subnet($ip, $range[0], $range[1]))
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-
-	private static function in_subnet($ip, $network, $bits)
-	{
-		$address = inet_pton($ip);
-		$base = inet_pton($network);
-		$bytes = (int) floor($bits / 8);
-		$remaining = $bits % 8;
-		return substr($address, 0, $bytes) === substr($base, 0, $bytes)
-			&& (!$remaining || ((ord($address[$bytes]) ^ ord($base[$bytes])) & (255 << (8 - $remaining))) === 0);
-	}
-
-	/** Resolve once and pin a validated address to prevent DNS rebinding. */
+	/** Resolve once and pin the address, so every request of a redirect step uses one address. */
 	protected function resolve($host)
 	{
 		if (filter_var($host, FILTER_VALIDATE_IP))
@@ -95,10 +63,15 @@ class http_client
 				$addresses[] = $record['ipv6'];
 			}
 		}
+		if (!$addresses)
+		{
+			// Names such as localhost usually come from the hosts file, not from DNS.
+			$addresses = @gethostbynamel($host) ?: array();
+		}
 		return array_unique($addresses);
 	}
 
-	/** @return string Feed bytes. Throws on unsafe destinations or failed requests. */
+	/** @return string Feed bytes. Throws on invalid URLs or failed requests. */
 	public function get($url, $timeout)
 	{
 		$deadline = microtime(true) + max(1, min(self::MAX_TIMEOUT, (int) $timeout));
@@ -113,13 +86,6 @@ class http_client
 			if (!$addresses)
 			{
 				throw new \RuntimeException('FPB_HTTP_FAILED');
-			}
-			foreach ($addresses as $ip)
-			{
-				if (!self::public_ip($ip))
-				{
-					throw new \RuntimeException('FPB_HTTP_UNSAFE');
-				}
 			}
 			$remaining = $deadline - microtime(true);
 			if ($remaining <= 0)
