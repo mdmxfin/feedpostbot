@@ -13,6 +13,7 @@ services:
             - '%core.php_ext%'
             - '@dispatcher'
             - '@ger.feedpostbot.classes.item_tracker'
+            - '@text_formatter.utils'
 
     ger.feedpostbot.classes.item_tracker:
         class: ger\feedpostbot\classes\item_tracker
