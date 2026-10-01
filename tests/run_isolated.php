@@ -28,6 +28,14 @@ spl_autoload_register(function ($class) use ($phpbb_root_path) {
 			require $file;
 		}
 	}
+	else if (strpos($class, 'ger\\feedpostbot\\') === 0)
+	{
+		$file = dirname(__DIR__) . '/' . str_replace('\\', '/', substr($class, strlen('ger\\feedpostbot\\'))) . '.php';
+		if (is_file($file))
+		{
+			require $file;
+		}
+	}
 });
 
 // These tests use mocks, not phpBB's database or functional test fixtures.

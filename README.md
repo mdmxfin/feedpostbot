@@ -52,6 +52,10 @@ composer install --no-dev --optimize-autoloader
    - **Append link:** Toggle appending the original article URL to the post.
 4. Set the **cron interval** (in seconds) for automated fetching, or click **Fetch all feeds manually** to test immediately.
 
+### Upgrading from Feed Post Bot 1.0.x
+
+Old releases stored the cron settings under different names. The migration `adopt_legacy_cron_config` copies them into the current settings when these are missing; existing settings are never overwritten.
+
 ## Support & Contributing
 
 - For questions, feature discussions, or official releases, visit the extension page on [phpBB.com](https://www.phpbb.com/customise/db/extension/feedpostbot/).
