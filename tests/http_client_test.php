@@ -9,51 +9,94 @@ namespace ger\feedpostbot\tests;
 
 class http_client_test extends \phpbb_test_case
 {
-	public function test_rejects_private_and_alternative_addresses()
+	public function test_accepts_local_and_private_destinations()
 	{
-		foreach (array('http://[::1]/feed', 'http://[fd00::1]/feed', 'http://[::ffff:127.0.0.1]/feed',
-			'http://127.1/feed', 'http://2130706433/feed', 'http://0x7f000001/feed', 'http://0177.0.0.1/feed',
-			'http://100.64.0.1/feed', 'http://192.0.2.1/feed', 'http://198.18.0.1/feed', 'http://224.0.0.1/feed',
-			'http://localhost/feed', 'http://user:password@example.com/feed', 'file:///etc/passwd',
-			"https://example.com/\r\nHost: localhost") as $url)
+		foreach (array('http://127.0.0.1/feed', 'http://127.0.0.1:8080/rss?x=1', 'http://localhost/feed', 'https://localhost:8443/feed',
+			'http://localhost./feed', 'http://[::1]/feed', 'http://[fd00::1]/feed', 'http://[::ffff:127.0.0.1]/feed',
+			'http://10.0.0.5/feed', 'http://172.16.0.1/feed', 'http://192.168.1.10/rss', 'http://100.64.0.1/feed',
+			'http://my-proxy/feed', 'http://feeds.lan/rss', 'https://example.com/feed?a=1&b=2') as $url)
+		{
+			$this->assertTrue(\ger\feedpostbot\classes\http_client::valid_url($url), $url);
+		}
+	}
+
+	public function test_rejects_invalid_urls()
+	{
+		foreach (array('http://127.1/feed', 'http://2130706433/feed', 'http://0x7f000001/feed', 'http://0177.0.0.1/feed',
+			'http://user:password@example.com/feed', 'http://user@localhost/feed', 'file:///etc/passwd', 'ftp://localhost/feed',
+			'gopher://127.0.0.1:70/', 'http:///feed', 'localhost/feed', "https://example.com/\r\nHost: localhost",
+			'http://local host/feed', 'http://-bad.example/feed') as $url)
 		{
 			$this->assertFalse(\ger\feedpostbot\classes\http_client::valid_url($url), $url);
 		}
-		$this->assertTrue(\ger\feedpostbot\classes\http_client::valid_url('https://example.com/feed?a=1&b=2'));
-		$this->assertTrue(\ger\feedpostbot\classes\http_client::public_ip('8.8.8.8'));
-		$this->assertTrue(\ger\feedpostbot\classes\http_client::public_ip('2606:4700:4700::1111'));
 	}
 
-	public function test_mixed_dns_answers_are_rejected_before_connecting()
+	public function test_local_and_private_answers_are_fetched_from_the_pinned_address()
 	{
-		$client = new http_client_fixture();
-		$client->addresses = array('8.8.8.8', '127.0.0.1');
-		try
+		foreach (array(array('http://localhost/feed', '127.0.0.1'), array('http://127.0.0.1/feed', '127.0.0.1'),
+			array('http://feeds.lan/rss', '192.168.1.5'), array('http://[::1]/feed', '::1')) as $case)
 		{
-			$client->get('https://example.com/feed', 3);
-			$this->fail('Unsafe DNS answers were accepted');
-		}
-		catch (\RuntimeException $error)
-		{
-			$this->assertSame('FPB_HTTP_UNSAFE', $error->getMessage());
-			$this->assertCount(0, $client->requests);
+			$client = new http_client_fixture();
+			$client->addresses = array($case[1]);
+			$client->responses = array(array('status' => 200, 'location' => '', 'body' => '<rss/>'));
+			$this->assertSame('<rss/>', $client->get($case[0], 3), $case[0]);
+			$this->assertSame($case[1], $client->requests[0][1]);
+			$this->assertSame($case[0], $client->get_final_url());
 		}
 	}
 
-	public function test_redirect_to_internal_address_is_rejected()
+	public function test_redirect_to_local_address_is_followed()
 	{
 		$client = new http_client_fixture();
-		$client->responses = array(array('status' => 302, 'location' => 'http://[::1]/private', 'body' => ''));
+		$client->responses = array(array('status' => 302, 'location' => 'http://127.0.0.1:8080/local', 'body' => ''),
+			array('status' => 200, 'location' => '', 'body' => '<rss/>'));
+		$this->assertSame('<rss/>', $client->get('https://example.com/feed', 3));
+		$this->assertSame('http://127.0.0.1:8080/local', $client->get_final_url());
+		$this->assertCount(2, $client->requests);
+	}
+
+	public function test_redirect_to_unsupported_url_is_rejected()
+	{
+		$client = new http_client_fixture();
+		$client->responses = array(array('status' => 302, 'location' => 'file:///etc/passwd', 'body' => ''));
 		try
 		{
 			$client->get('https://example.com/feed', 3);
-			$this->fail('Unsafe redirect was accepted');
+			$this->fail('Unsupported redirect was accepted');
 		}
 		catch (\RuntimeException $error)
 		{
 			$this->assertSame('FPB_HTTP_UNSAFE', $error->getMessage());
 			$this->assertCount(1, $client->requests);
 		}
+	}
+
+	public function test_localhost_resolves_through_the_hosts_file()
+	{
+		if (!@gethostbynamel('localhost'))
+		{
+			$this->markTestSkipped('localhost does not resolve on this system');
+		}
+		$method = new \ReflectionMethod(\ger\feedpostbot\classes\http_client::class, 'resolve');
+		$method->setAccessible(true);
+		$addresses = $method->invoke(new \ger\feedpostbot\classes\http_client(), 'localhost');
+		$this->assertNotEmpty($addresses);
+		foreach ($addresses as $address)
+		{
+			$this->assertNotFalse(filter_var($address, FILTER_VALIDATE_IP), $address);
+		}
+	}
+
+	public function test_acp_accepts_local_feed_urls_and_still_detects_duplicates()
+	{
+		$module = new \ger\feedpostbot\acp\main_module();
+		$method = new \ReflectionMethod($module, 'validate_feed');
+		$method->setAccessible(true);
+		$state = array(array('url' => 'http://127.0.0.1/feed'));
+		$this->assertTrue($method->invoke($module, $state, 'http://localhost/feed'));
+		$this->assertTrue($method->invoke($module, $state, 'http://192.168.1.10/rss'));
+		$this->assertFalse($method->invoke($module, $state, 'http://127.0.0.1/feed'));
+		$this->assertFalse($method->invoke($module, $state, 'ftp://127.0.0.1/feed'));
 	}
 
 	public function test_relative_redirect_keeps_query_and_pins_each_connection()
