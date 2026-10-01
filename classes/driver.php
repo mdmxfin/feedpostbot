@@ -33,6 +33,8 @@ class driver
 	protected $phpbb_root_path;
 	protected $php_ext;
 	protected $phpbb_dispatcher;
+	/** @var item_tracker|null Storage for tracked feed items, null when update tracking is unavailable */
+	protected $tracker;
 	public $current_state;
 
 	/** @var array Cache for forum names */
@@ -56,8 +58,9 @@ class driver
 	 * @param string										$phpbb_root_path
 	 * @param string										$php_ext
 	 * @param \phpbb\event\dispatcher						$phpbb_dispatcher
+	 * @param item_tracker|null								$tracker			Tracked item storage
 	 */
-	public function __construct(\phpbb\config\config $config, \phpbb\config\db_text $config_text, \phpbb\user $user, \phpbb\language\language $language, \phpbb\auth\auth $auth, \phpbb\db\driver\driver_interface $db, \phpbb\log\log $log, $phpbb_root_path, $php_ext, \phpbb\event\dispatcher $phpbb_dispatcher)
+	public function __construct(\phpbb\config\config $config, \phpbb\config\db_text $config_text, \phpbb\user $user, \phpbb\language\language $language, \phpbb\auth\auth $auth, \phpbb\db\driver\driver_interface $db, \phpbb\log\log $log, $phpbb_root_path, $php_ext, \phpbb\event\dispatcher $phpbb_dispatcher, ?item_tracker $tracker = null)
 	{
 		$this->config = $config;
 		$this->config_text = $config_text;
@@ -69,6 +72,7 @@ class driver
 		$this->phpbb_root_path = $phpbb_root_path;
 		$this->php_ext = $php_ext;
 		$this->phpbb_dispatcher = $phpbb_dispatcher;
+		$this->tracker = $tracker;
 	}
 
 	/**
