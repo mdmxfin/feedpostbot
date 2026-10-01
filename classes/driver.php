@@ -22,6 +22,8 @@ class driver
 	public const LOG_FEED_ERROR = 'FPB_LOG_FEED_ERROR';
 	public const LANG_READ_MORE = 'FPB_READ_MORE';
 	public const LANG_SOURCE = 'FPB_SOURCE';
+	/** Bump when the meaning of source/content fingerprints changes; tracked items are then re-baselined silently. */
+	public const FINGERPRINT_VERSION = 1;
 
 	protected $config;
 	protected $config_text;
@@ -518,6 +520,8 @@ class driver
 
 			$append = array(
 				'guid'        => $guid,
+				// Only a real feed identifier; get_id() otherwise derives one from the content.
+				'native_id'   => $this->prop_to_string($item->get_id(false, false)),
 				'title'       => $title,
 				'link'        => $link,
 				'description' => $description,
@@ -676,6 +680,173 @@ class driver
 	}
 
 	/**
+	 * Stable identity of a feed item for update tracking
+	 *
+	 * Uses the real feed identifier, otherwise the normalized permalink. Content, title and
+	 * dates are never used: an item without identifier and link is not tracked.
+	 *
+	 * @param array $item
+	 * @return array|null key (sha256) and ident (raw identity), or null when not trackable
+	 */
+	public function tracking_key(array $item)
+	{
+		$native = isset($item['native_id']) ? trim((string) $item['native_id']) : '';
+		if ($native !== '')
+		{
+			$ident = 'guid:' . $native;
+		}
+		else
+		{
+			$link = isset($item['link']) ? self::normalize_link((string) $item['link']) : '';
+			if ($link === '')
+			{
+				return null;
+			}
+			$ident = 'link:' . $link;
+		}
+		return array('key' => hash('sha256', $ident), 'ident' => $ident);
+	}
+
+	/**
+	 * Remove cosmetic differences from a permalink
+	 *
+	 * Lowercases scheme and host, drops default ports and fragments. Path and query are
+	 * never changed because they often carry the actual article identifier.
+	 *
+	 * @param string $url
+	 * @return string
+	 */
+	public static function normalize_link($url)
+	{
+		$url = trim((string) $url);
+		$hash = strpos($url, '#');
+		if ($hash !== false)
+		{
+			$url = substr($url, 0, $hash);
+		}
+		if (!preg_match('~^([a-z][a-z0-9+.-]*)://([^/?]*)(.*)$~is', $url, $parts))
+		{
+			return $url;
+		}
+		$scheme = strtolower($parts[1]);
+		$authority = $parts[2];
+		$userinfo = '';
+		$at = strrpos($authority, '@');
+		if ($at !== false)
+		{
+			$userinfo = substr($authority, 0, $at + 1);
+			$authority = substr($authority, $at + 1);
+		}
+		$port = '';
+		if (preg_match('~^(\[[^\]]*\]|[^:]*)(?::(\d*))?$~', $authority, $host_parts))
+		{
+			$host = $host_parts[1];
+			$port = isset($host_parts[2]) ? $host_parts[2] : '';
+		}
+		else
+		{
+			$host = $authority;
+		}
+		if ($port === '' || ($scheme === 'http' && $port === '80') || ($scheme === 'https' && $port === '443'))
+		{
+			$port = '';
+		}
+		return $scheme . '://' . $userinfo . strtolower($host) . ($port !== '' ? ':' . $port : '') . $parts[3];
+	}
+
+	/**
+	 * Fingerprint of the feed data of an item
+	 *
+	 * Covers everything parse events put into the item except its date and identity, so a
+	 * changed pubDate alone is never an update.
+	 *
+	 * @param array $item
+	 * @param array $source
+	 * @return array hash and scheme
+	 */
+	public function source_fingerprint(array $item, array $source)
+	{
+		$fingerprint_data = $item;
+		unset($fingerprint_data['pubDate'], $fingerprint_data['guid'], $fingerprint_data['native_id']);
+		$scheme_tags = array(
+			'core'		=> self::FINGERPRINT_VERSION,
+			'simplepie'	=> class_exists('\SimplePie\SimplePie') ? \SimplePie\SimplePie::VERSION : '',
+		);
+		$rss_item = $item;
+
+		/**
+		 * Modify the data used to detect changes of a tracked feed item
+		 *
+		 * Remove volatile values an extension added to the item, and add a tag to
+		 * scheme_tags whenever the meaning of added data changes: tracked items are then
+		 * re-baselined without being updated. Listeners must be free of side effects.
+		 *
+		 * @event ger.feedpostbot.item_fingerprint
+		 * @var  array  fingerprint_data  Item data that is hashed
+		 * @var  array  scheme_tags       Version tags of the fingerprint scheme
+		 * @var  array  rss_item          Complete feed item as fetched by parse_feed
+		 * @var  array  source            Source settings
+		 * @since 1.2.0
+		 */
+		$vars = array('fingerprint_data', 'scheme_tags', 'rss_item', 'source');
+		$event_data = $this->phpbb_dispatcher->trigger_event('ger.feedpostbot.item_fingerprint', compact($vars));
+		if (is_array($event_data) || $event_data instanceof \ArrayAccess)
+		{
+			extract((array) $event_data);
+		}
+		return array(
+			'hash'		=> hash('sha256', $this->canonical_json($fingerprint_data)),
+			'scheme'	=> hash('sha256', $this->canonical_json($scheme_tags)),
+		);
+	}
+
+	/**
+	 * Fingerprint of the reproducible post content, taken before phpBB storage
+	 *
+	 * @param array $content As returned by build_post_content()
+	 * @return string
+	 */
+	public function content_fingerprint(array $content)
+	{
+		return hash('sha256', $this->canonical_json(array(
+			'subject'			=> $content['subject'],
+			'message'			=> $content['message'],
+			'enable_bbcode'		=> (bool) $content['enable_bbcode'],
+			'enable_smilies'	=> (bool) $content['enable_smilies'],
+			'enable_urls'		=> (bool) $content['enable_urls'],
+		)));
+	}
+
+	/**
+	 * Deterministic JSON: sorted keys, normalized line endings, trimmed strings
+	 *
+	 * @param mixed $value
+	 * @return string
+	 */
+	protected function canonical_json($value)
+	{
+		return (string) json_encode($this->canonical_value($value), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+	}
+
+	private function canonical_value($value)
+	{
+		if (is_object($value))
+		{
+			$value = method_exists($value, '__toString') ? (string) $value : get_object_vars($value);
+		}
+		if (is_array($value))
+		{
+			ksort($value, SORT_STRING);
+			return array_map(array($this, 'canonical_value'), $value);
+		}
+		if (is_string($value))
+		{
+			return trim(str_replace(array("\r\n", "\r"), "\n", $value));
+		}
+		return $value;
+	}
+
+	/**
 	 * Check if this is the latest item
 	 * Use guid if available, fallback to pubDate & link
 	 *
@@ -713,90 +884,52 @@ class driver
 		{
 			return false;
 		}
-		if (!function_exists('generate_text_for_storage'))
+		if (!$this->load_posting_functions())
 		{
-			include($this->phpbb_root_path . 'includes/functions_content.' . $this->php_ext);
-		}
-		if (!function_exists('submit_post'))
-		{
-			$include_result = include($this->phpbb_root_path . 'includes/functions_posting.' . $this->php_ext);
-			if (!$include_result || !function_exists('submit_post'))
-			{
-				return false;
-			}
+			return false;
 		}
 		$source = $this->current_state[$source_id];
+		$content = $this->build_post_content($rss_item, $source);
+		$storage = $this->storage_fields($content);
+		$title = $content['subject'];
 
-		// Make sure we have UTF-8 and handle HTML
-		$description = $rss_item['description'];
-		$title = $this->clean_title($rss_item['title']);
-		if (!empty($source['prefix']))
+		// Prep posting
+		$poll = array();
+		$post_time = 0;
+		if (empty($source['curdate']) && !empty($rss_item['pubDate']))
 		{
-			$title = $this->clean_title($source['prefix']) . ' ' . $title;
-		}
-
-		// Only show excerpt of feed if a text limit is given, but make it nice
-		if (!empty($source['textlimit']))
-		{
-			$post_text = $this->html2bbcode($this->closetags($this->character_limiter($description, $source['textlimit'])));
-			if (!empty($source['append_link']))
+			$ts = is_numeric($rss_item['pubDate']) ? (int) $rss_item['pubDate'] : strtotime((string) $rss_item['pubDate']);
+			if ($ts !== false && $ts > 0)
 			{
-				$post_text .= "\n\n" . '[url=' . $rss_item['link'] . ']' . $this->user->lang(self::LANG_READ_MORE) . '[/url]';
-			}
-		}
-		else
-		{
-			$post_text = $this->html2bbcode($description);
-			if (!empty($source['append_link']))
-			{
-				$post_text .= "\n\n" . $this->user->lang(self::LANG_SOURCE) . ' [url]' .  $rss_item['link'] . '[/url]';
+				$post_time = (int) $ts;
 			}
 		}
 
-		if (is_numeric($source['forum_id']))
-		{
-			// Prep posting
-			$poll = array();
-			$uid = $bitfield = $options = '';
-			$allow_bbcode = $allow_urls = $allow_smilies = true;
-			generate_text_for_storage($post_text, $uid, $bitfield, $options, $allow_bbcode, $allow_urls, $allow_smilies);
-
-			$post_time = 0;
-			if (empty($source['curdate']) && !empty($rss_item['pubDate']))
-			{
-				$ts = is_numeric($rss_item['pubDate']) ? (int) $rss_item['pubDate'] : strtotime((string) $rss_item['pubDate']);
-				if ($ts !== false && $ts > 0)
-				{
-					$post_time = (int) $ts;
-				}
-			}
-
-			$data = array(
-				// General Posting Settings
-				'forum_id'		 => (int) $source['forum_id'], // The forum ID in which the post will be placed. (int)
-				'topic_id'		 => 0, // Post a new topic or in an existing one? Set to 0 to create a new one, if not, specify your topic ID here instead.
-				'icon_id'		 => false, // The Icon ID in which the post will be displayed with on the viewforum, set to false for icon_id. (int)
-				// Defining Post Options
-				'enable_bbcode'	 => true, // Enable BBcode in this post. (bool)
-				'enable_smilies'	 => true, // Enabe smilies in this post. (bool)
-				'enable_urls'	 => true, // Enable self-parsing URL links in this post. (bool)
-				'enable_sig'	 => true, // Enable the signature of the poster to be displayed in the post. (bool)
-				// Message Body
-				'message'		 => $post_text, // Your text you wish to have submitted. It should pass through generate_text_for_storage() before this. (string)
-				'message_md5'	 => md5($post_text), // The md5 hash of your message
-				// Values from generate_text_for_storage()
-				'bbcode_bitfield'	 => $bitfield, // Value created from the generate_text_for_storage() function.
-				'bbcode_uid'	 => $uid, // Value created from the generate_text_for_storage() function.
-				// Other Options
-				'post_edit_locked'	 => 0, // Disallow post editing? 1 = Yes, 0 = No
-				'topic_title'	 => $title,
-				'notify_set'	 => true, // (bool)
-				'notify'		 => true, // (bool)
-				'post_time'		 => $post_time, // Set a specific time, use 0 to let submit_post() take care of getting the proper time (int)
-				'forum_name'	 => $this->get_forum_name($source['forum_id']), // For identifying the name of the forum in a notification email. (string)    // Indexing
-				'enable_indexing'	 => true, // Allow indexing the post? (bool)    // 3.0.6
-			);
-		}
+		$data = array(
+			// General Posting Settings
+			'forum_id'		 => (int) $source['forum_id'], // The forum ID in which the post will be placed. (int)
+			'topic_id'		 => 0, // Post a new topic or in an existing one? Set to 0 to create a new one, if not, specify your topic ID here instead.
+			'icon_id'		 => false, // The Icon ID in which the post will be displayed with on the viewforum, set to false for icon_id. (int)
+			// Defining Post Options
+			'enable_bbcode'	 => $content['enable_bbcode'], // Enable BBcode in this post. (bool)
+			'enable_smilies'	 => $content['enable_smilies'], // Enabe smilies in this post. (bool)
+			'enable_urls'	 => $content['enable_urls'], // Enable self-parsing URL links in this post. (bool)
+			'enable_sig'	 => true, // Enable the signature of the poster to be displayed in the post. (bool)
+			// Message Body
+			'message'		 => $storage['message'], // Your text you wish to have submitted. It should pass through generate_text_for_storage() before this. (string)
+			'message_md5'	 => $storage['message_md5'], // The md5 hash of your message
+			// Values from generate_text_for_storage()
+			'bbcode_bitfield'	 => $storage['bbcode_bitfield'], // Value created from the generate_text_for_storage() function.
+			'bbcode_uid'	 => $storage['bbcode_uid'], // Value created from the generate_text_for_storage() function.
+			// Other Options
+			'post_edit_locked'	 => 0, // Disallow post editing? 1 = Yes, 0 = No
+			'topic_title'	 => $title,
+			'notify_set'	 => true, // (bool)
+			'notify'		 => true, // (bool)
+			'post_time'		 => $post_time, // Set a specific time, use 0 to let submit_post() take care of getting the proper time (int)
+			'forum_name'	 => $this->get_forum_name($source['forum_id']), // For identifying the name of the forum in a notification email. (string)    // Indexing
+			'enable_indexing'	 => true, // Allow indexing the post? (bool)    // 3.0.6
+		);
 		// Maybe an extension handles the content other than by posting
 		$do_post = true;
 
@@ -820,10 +953,136 @@ class driver
 
 		if ($do_post)
 		{
-			$result = submit_post('post', $title, $this->user->data['username'], POST_NORMAL, $poll, $data);
+			$result = $this->submit('post', $title, $this->user->data['username'], POST_NORMAL, $poll, $data);
 			return is_string($result) && $result !== '' ? $result : false;
 		}
 		return true;
+	}
+
+	/**
+	 * Build the reproducible content of a first post from a feed item
+	 *
+	 * The result is BBCode source before phpBB storage, so it is used for new topics,
+	 * first-post updates and content fingerprints alike.
+	 *
+	 * @param array $rss_item
+	 * @param array $source
+	 * @return array subject, message, enable_bbcode, enable_smilies, enable_urls
+	 */
+	public function build_post_content(array $rss_item, array $source)
+	{
+		// Make sure we have UTF-8 and handle HTML
+		$description = isset($rss_item['description']) ? $rss_item['description'] : '';
+		$link = isset($rss_item['link']) ? $rss_item['link'] : '';
+		$title = $this->clean_title(isset($rss_item['title']) ? $rss_item['title'] : '');
+		if (!empty($source['prefix']))
+		{
+			$title = $this->clean_title($source['prefix']) . ' ' . $title;
+		}
+
+		// Only show excerpt of feed if a text limit is given, but make it nice
+		if (!empty($source['textlimit']))
+		{
+			$post_text = $this->html2bbcode($this->closetags($this->character_limiter($description, $source['textlimit'])));
+			if (!empty($source['append_link']))
+			{
+				$post_text .= "\n\n" . '[url=' . $link . ']' . $this->user->lang(self::LANG_READ_MORE) . '[/url]';
+			}
+		}
+		else
+		{
+			$post_text = $this->html2bbcode($description);
+			if (!empty($source['append_link']))
+			{
+				$post_text .= "\n\n" . $this->user->lang(self::LANG_SOURCE) . ' [url]' .  $link . '[/url]';
+			}
+		}
+
+		$content = array(
+			'subject'			=> $title,
+			'message'			=> $post_text,
+			'enable_bbcode'		=> true,
+			'enable_smilies'	=> true,
+			'enable_urls'		=> true,
+		);
+
+		/**
+		 * Modify the reproducible post content built from a feed item
+		 *
+		 * Used for new topics, updates of tracked first posts and content fingerprints.
+		 * Listeners must be deterministic and free of side effects: the event runs on
+		 * every feed run for tracked items whose source changed.
+		 *
+		 * @event ger.feedpostbot.modify_post_content
+		 * @var  array  content   subject, message (BBCode source), enable_bbcode, enable_smilies, enable_urls
+		 * @var  array  rss_item  Complete feed item as fetched by parse_feed
+		 * @var  array  source    Source settings
+		 * @since 1.2.0
+		 */
+		$vars = array('content', 'rss_item', 'source');
+		$event_data = $this->phpbb_dispatcher->trigger_event('ger.feedpostbot.modify_post_content', compact($vars));
+		if (is_array($event_data) || $event_data instanceof \ArrayAccess)
+		{
+			extract((array) $event_data);
+		}
+		return array(
+			'subject'			=> (string) $content['subject'],
+			'message'			=> (string) $content['message'],
+			'enable_bbcode'		=> (bool) $content['enable_bbcode'],
+			'enable_smilies'	=> (bool) $content['enable_smilies'],
+			'enable_urls'		=> (bool) $content['enable_urls'],
+		);
+	}
+
+	/**
+	 * Prepare post content for storage
+	 *
+	 * @param array $content As returned by build_post_content()
+	 * @return array message, message_md5, bbcode_uid, bbcode_bitfield
+	 */
+	protected function storage_fields(array $content)
+	{
+		$text = $content['message'];
+		$uid = $bitfield = $options = '';
+		generate_text_for_storage($text, $uid, $bitfield, $options, $content['enable_bbcode'], $content['enable_urls'], $content['enable_smilies']);
+		return array(
+			'message'			=> $text,
+			'message_md5'		=> md5($text),
+			'bbcode_uid'		=> $uid,
+			'bbcode_bitfield'	=> $bitfield,
+		);
+	}
+
+	/**
+	 * Make sure the phpBB posting functions are available
+	 *
+	 * @return bool
+	 */
+	protected function load_posting_functions()
+	{
+		if (!function_exists('generate_text_for_storage'))
+		{
+			include($this->phpbb_root_path . 'includes/functions_content.' . $this->php_ext);
+		}
+		if (!function_exists('submit_post'))
+		{
+			$include_result = include($this->phpbb_root_path . 'includes/functions_posting.' . $this->php_ext);
+			if (!$include_result || !function_exists('submit_post'))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Wrapper around submit_post()
+	 *
+	 * @return string|bool
+	 */
+	protected function submit($mode, $subject, $username, $topic_type, &$poll, &$data)
+	{
+		return submit_post($mode, $subject, $username, $topic_type, $poll, $data);
 	}
 
 	/**
