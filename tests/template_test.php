@@ -22,7 +22,7 @@ class template_test extends \phpbb_test_case
 			return $key === 'SUBMIT' ? 'Save "changes"' : $key;
 		}));
 		$html = $twig->render('body', array('loops' => array('feeds' => array(array(
-			'ID' => 0, 'URL' => 'https://example.com/feed?a=1&b="two"', 'TYPE' => 'rss',
+			'ID' => 0, 'URL' => 'https://example.com/feed?a=1&b="two"', 'TYPE' => 'rss', 'S_UPDATE_EXISTING' => true, 'S_UPDATE_REPLY' => false,
 		)))));
 		$document = new \DOMDocument();
 		$previous = libxml_use_internal_errors(true);
@@ -37,6 +37,9 @@ class template_test extends \phpbb_test_case
 				$this->assertSame('Save "changes"', $button->getAttribute('value'));
 			}
 			$this->assertSame('https://example.com/feed?a=1&b="two"', $xpath->query('//input[@name="0_url"]')->item(0)->getAttribute('value'));
+			$this->assertSame('checked', $xpath->query('//input[@name="0_update_existing"]')->item(0)->getAttribute('checked'));
+			$this->assertFalse($xpath->query('//input[@name="0_update_reply"]')->item(0)->hasAttribute('checked'));
+			$this->assertSame(1, $xpath->query('//input[@name="0_recreate_deleted"]')->length);
 		}
 		finally
 		{

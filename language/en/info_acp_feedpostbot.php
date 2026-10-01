@@ -28,6 +28,10 @@ $lang = array_merge($lang, array(
 		2	=> 'All feeds fetched: %d new posts created',
 	),
 	'FPB_ACP_NO_FETCHED_ITEMS'          => 'No (new) items to fetch',
+	'FPB_ACP_UPDATED_ITEMS'             => array(
+		1	=> 'Updated %d previously published topic.',
+		2	=> 'Updated %d previously published topics.',
+	),
 	'FPB_ADD_FEED'						=> 'Add feed',
 	'FPB_CONFIGURED_FEEDS'				=> 'Configured feeds',
 	'FPB_APPEND_LINK'					=> 'Append link',
@@ -89,4 +93,11 @@ $lang = array_merge($lang, array(
 	'FPB_REASON_16'						=> 'Several items of the current feed share this identity; updates are paused until only one remains.',
 	'FPB_REASON_20'						=> 'Updating the first post failed; it is retried on the next run.',
 	'FPB_REASON_21'						=> 'Posting the update reply failed; it is retried later.',
+	'FPB_UPDATES'						=> 'Updates',
+	'FPB_UPDATE_EXISTING'				=> 'Update topic',
+	'FPB_UPDATE_EXISTING_EXPLAIN'		=> 'When a previously published feed item changes, update the first post of its topic instead of ignoring the change.',
+	'FPB_UPDATE_REPLY'					=> 'Reply on update',
+	'FPB_UPDATE_REPLY_EXPLAIN'			=> 'When a topic is updated, add a reply announcing the update. The reply also bumps the topic to the top of the forum. Requires the “Update topic” setting.',
+	'FPB_RECREATE_DELETED'				=> 'Recreate deleted',
+	'FPB_RECREATE_DELETED_EXPLAIN'		=> 'Create a new topic when a tracked item changes after its topic was permanently deleted. Soft-deleted topics are never recreated or restored. Requires “Update topic”.',
 ));

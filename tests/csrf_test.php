@@ -80,6 +80,10 @@ class csrf_driver_fixture
 		$this->fetches++;
 		return 0;
 	}
+	public function get_run_result()
+	{
+		return array('created' => 0, 'updated' => 0, 'locked' => false);
+	}
 }
 
 // Isolate the ACP form/response boundary; the actual main() branch is exercised above.
