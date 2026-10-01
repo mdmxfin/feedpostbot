@@ -18,6 +18,8 @@ class driver
 	public const LOG_ADMIN = 'admin';
 	public const LOG_FEED_FETCHED = 'FPB_LOG_FEED_FETCHED';
 	public const MAX_RUN_SECONDS = 300;
+	/** A lock may be reset manually once it is this much older than the longest regular run (seconds). */
+	public const LOCK_RESET_MARGIN = 300;
 	public const HISTORY_LIMIT = 10000;
 	public const LOG_FEED_ERROR = 'FPB_LOG_FEED_ERROR';
 	public const LANG_READ_MORE = 'FPB_READ_MORE';
@@ -211,6 +213,31 @@ class driver
 			}
 		}
 		return $counter;
+	}
+
+	/**
+	 * Release the processing lock from the ACP, but only when no worker can still be running
+	 *
+	 * The lock value is "<acquire time> <owner id>". Workers stop starting new work after
+	 * MAX_RUN_SECONDS, so a lock older than that plus a margin belongs to a dead worker.
+	 * phpBB still expires abandoned locks automatically after one hour.
+	 *
+	 * @return bool False when the lock may belong to a running worker
+	 */
+	public function reset_stale_lock()
+	{
+		$value = isset($this->config['feedpostbot_locked']) ? (string) $this->config['feedpostbot_locked'] : '0';
+		if ($value === '' || $value === '0')
+		{
+			return true;
+		}
+		$acquired = (int) strtok($value, ' ');
+		if ($acquired + self::MAX_RUN_SECONDS + self::LOCK_RESET_MARGIN >= time())
+		{
+			return false;
+		}
+		// Only if nobody acquired the lock in the meantime.
+		return (bool) $this->config->set_atomic('feedpostbot_locked', $value, '0', false);
 	}
 
 	protected function create_lock()

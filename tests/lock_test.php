@@ -31,4 +31,37 @@ class lock_test extends \phpbb_test_case
 		$lock->release();
 		$this->assertStringContainsString('replacement-owner', $config['feedpostbot_locked']);
 	}
+
+	protected function driver(\phpbb\config\config $config)
+	{
+		$mock = function ($class) { return $this->getMockBuilder($class)->disableOriginalConstructor()->getMock(); };
+		return new \ger\feedpostbot\classes\driver($config, $mock('\phpbb\config\db_text'), $mock('\phpbb\user'), $mock('\phpbb\language\language'),
+			$mock('\phpbb\auth\auth'), $this->getMockBuilder('\phpbb\db\driver\driver_interface')->getMock(), $mock('\phpbb\log\log'), './', 'php',
+			$mock('\phpbb\event\dispatcher'));
+	}
+
+	public function test_lock_of_a_possibly_running_worker_cannot_be_reset()
+	{
+		$driver = $this->driver($config = new \phpbb\config\config(array()));
+		foreach (array(time(), time() - \ger\feedpostbot\classes\driver::MAX_RUN_SECONDS - 60) as $acquired)
+		{
+			$config['feedpostbot_locked'] = $acquired . ' worker';
+			$this->assertFalse($driver->reset_stale_lock());
+			$this->assertSame($acquired . ' worker', $config['feedpostbot_locked']);
+		}
+	}
+
+	public function test_stale_lock_can_be_reset()
+	{
+		$stale = time() - \ger\feedpostbot\classes\driver::MAX_RUN_SECONDS - \ger\feedpostbot\classes\driver::LOCK_RESET_MARGIN - 1;
+		$config = new \phpbb\config\config(array('feedpostbot_locked' => $stale . ' worker'));
+		$driver = $this->driver($config);
+		$this->assertTrue($driver->reset_stale_lock());
+		$this->assertSame('0', $config['feedpostbot_locked']);
+		// Legacy value without owner, and no lock at all.
+		$config['feedpostbot_locked'] = '1';
+		$this->assertTrue($driver->reset_stale_lock());
+		$this->assertSame('0', $config['feedpostbot_locked']);
+		$this->assertTrue($driver->reset_stale_lock());
+	}
 }
