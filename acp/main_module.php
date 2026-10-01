@@ -71,7 +71,10 @@ class main_module
 			{
 				trigger_error('FORM_INVALID');
 			}
-			$config->set('feedpostbot_locked', '0');
+			if (!$feedpostbot->reset_stale_lock())
+			{
+				trigger_error($user->lang('FPB_LOCK_ACTIVE') . adm_back_link($this->u_action), E_USER_WARNING);
+			}
 			trigger_error($user->lang('FPB_ACP_FEEDPOSTBOT_SETTING_SAVED') . adm_back_link($this->u_action));
 		}
 		else if ($request->is_set_post('submit'))
