@@ -63,7 +63,7 @@ Feed items are sometimes corrected after publication. With **Update topic** enab
 
 ### What is tracked
 
-- Only items published while *Update topic* is enabled are tracked. Existing topics, including those of older Feed Post Bot versions, are never matched or changed.
+- Topics Feed Post Bot creates from now on are tracked, also while *Update topic* is switched off, as long as their feed item can be identified (see below). Topics created earlier, including those of older Feed Post Bot versions, are never matched or changed.
 - Items are identified by the feed's own item identifier (RSS `guid`, Atom `id`), otherwise by their permalink. Items with neither are not tracked. Titles, content and dates are never used to identify items.
 - Changing a feed's URL starts a new feed: its tracked topics are forgotten, just like its posting history. Deleting a feed forgets its tracked topics.
 - When *Update topic* is switched off, tracked items are still recognised and not posted again, but their topics are not edited or replied to. Changes are applied when the option is enabled again.

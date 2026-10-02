@@ -917,8 +917,9 @@ class driver
 				}
 				try
 				{
-					// Items with an ambiguous identity are posted without update tracking.
-					$track = $tracking_key !== null && !empty($source['update_existing']) && !isset($ambiguous[$tracking_key['key']]);
+					// New items with a stable, unambiguous identity are always mapped, also while updates are
+					// switched off: the mapping keeps deduplicating them. Ambiguous identities are not tracked.
+					$track = $tracking_key !== null && !isset($ambiguous[$tracking_key['key']]);
 					$result = $track ? $this->create_tracked($item, $source_id, $tracking_key) : $this->post_message($item, $source_id);
 					if ($track)
 					{

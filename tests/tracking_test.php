@@ -466,15 +466,82 @@ class tracking_test extends fixtures\tracking_test_case
 		$this->assertArrayHasKey(hash('sha256', 'guid:' . $changed['guid']), $this->saved[0]['handled']);
 	}
 
-	public function test_new_items_while_updates_are_off_are_not_tracked()
+	public function test_feeds_saved_before_the_update_settings_existed_map_new_topics()
+	{
+		// Settings of an upgraded board: the new per-feed keys are missing and default to off.
+		unset($this->saved[0]['update_existing'], $this->saved[0]['update_reply'], $this->saved[0]['recreate_deleted']);
+		$this->assertSame(3, $this->run_feed(array($this->item('a'), $this->item('b'), $this->item('c'))));
+		$this->assertArrayNotHasKey('update_existing', $this->saved[0]);
+		$this->assertSame(0, $this->driver->state()[0]['update_existing']);
+		$this->assertCount(3, $this->topics());
+		$this->assertCount(3, $this->tracker->rows);
+		$topics = array_keys($this->forum->topics);
+		foreach ($this->tracker->rows as $row)
+		{
+			$this->assertContains($row['topic_id'], $topics);
+			$this->assertSame(item_tracker::STATE_ACTIVE, $row['item_state']);
+			$this->assertSame(0, $row['pending_op']);
+		}
+	}
+
+	public function test_new_item_is_mapped_while_updates_are_off()
 	{
 		$this->settings(array('update_existing' => 0));
 		$this->assertSame(1, $this->run_feed(array($this->item('a'))));
-		$this->assertCount(0, $this->tracker->rows);
-		$this->settings(array('update_existing' => 1));
-		$this->assertSame(0, $this->run_feed(array($this->item('a', 'Changed'))));
-		$this->assertCount(0, $this->tracker->rows);
+		$row = $this->row();
+		$topic = reset($this->forum->topics);
+		$this->assertSame($topic['topic_id'], $row['topic_id']);
+		$this->assertSame($topic['topic_first_post_id'], $row['post_id']);
+		$this->assertSame(hash('sha256', 'guid:a'), $row['item_key']);
+		$this->assertSame($row['content_hash'], $row['notified_hash']);
+		$this->assertSame(1, preg_match('/^g1:[0-9a-f]{64}$/', $row['guard_hash']));
+		// The same item again: not posted twice.
+		$this->assertSame(0, $this->run_feed(array($this->item('a'))));
+		$this->assertCount(1, $this->topics());
 		$this->assertCount(1, $this->forum->calls);
+		$this->assertSame($row, $this->row());
+	}
+
+	public function test_item_mapped_while_off_stays_frozen_and_is_updated_after_enabling()
+	{
+		$this->settings(array('update_existing' => 0));
+		// Without a feed identifier: the historical key changes with the content, the mapping does not.
+		$this->run_feed(array($this->guidless_item('news')));
+		$row = $this->row();
+		$this->assertSame(0, $this->run_feed(array($this->guidless_item('news', 'Changed body'))));
+		$this->assertCount(1, $this->topics());
+		$this->assertCount(0, $this->calls('edit'));
+		$this->assertSame($row, $this->row());
+		$this->settings(array('update_existing' => 1));
+		$this->assertSame(0, $this->run_feed(array($this->guidless_item('news', 'Changed body'))));
+		$edits = $this->calls('edit');
+		$this->assertCount(1, $edits);
+		$this->assertSame($row['post_id'], $edits[0]['data']['post_id']);
+		$this->assertCount(1, $this->topics());
+		$this->assertStringContainsString('Changed body', $this->forum->posts[$row['post_id']]['post_text']);
+		$this->assertNotSame($row['content_hash'], $this->row()['content_hash']);
+		$this->assertSame(1, $this->driver->get_run_result()['updated']);
+	}
+
+	public function test_ambiguous_and_unidentifiable_items_stay_untracked_while_updates_are_off()
+	{
+		$this->settings(array('update_existing' => 0));
+		$first = $this->guidless_item('home', 'First story');
+		$second = $this->guidless_item('home', 'Second story');
+		$anonymous = array('guid' => md5('content'), 'native_id' => '', 'title' => 'T', 'link' => '', 'description' => 'x', 'pubDate' => 1);
+		$this->assertSame(3, $this->run_feed(array($first, $second, $anonymous)));
+		$this->assertCount(0, $this->tracker->rows);
+		$this->assertSame(0, $this->run_feed(array($first, $second, $anonymous)));
+		$this->assertCount(3, $this->topics());
+	}
+
+	public function test_legacy_handled_items_stay_untouched_while_updates_are_off()
+	{
+		$this->settings(array('update_existing' => 0));
+		$this->saved[0]['handled'] = array(hash('sha256', 'guid:old') => true);
+		$this->assertSame(1, $this->run_feed(array($this->item('new'), $this->item('old', 'Changed'))));
+		$this->assertCount(1, $this->topics());
+		$this->assertSame(hash('sha256', 'guid:new'), $this->row()['item_key']);
 	}
 
 	public function test_tracking_without_repository_keeps_historical_behaviour()
