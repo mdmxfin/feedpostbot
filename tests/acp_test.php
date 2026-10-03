@@ -75,7 +75,7 @@ class acp_test extends \phpbb_test_case
 	protected function post(array $values = array())
 	{
 		return array_merge(array('0_url' => 'https://example.com/feed', '0_forum_id' => 5, '0_user_id' => 3, '0_textlimit' => 0,
-			'0_timeout' => 3, '0_append_link' => 'on'), $values);
+			'0_timeout' => 3, '0_max_new_items' => 0, '0_append_link' => 'on'), $values);
 	}
 
 	public function test_update_settings_are_saved_per_feed()

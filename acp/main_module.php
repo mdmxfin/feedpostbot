@@ -115,6 +115,7 @@ class main_module
 					'user_id' => $user->data['user_id'],
 					'textlimit' => 0,
 					'timeout' => 3,
+					'max_new_items' => 0,
 					'curdate' => 0,
 					'append_link' => 1,
 					'update_existing' => 0,
@@ -144,7 +145,7 @@ class main_module
 							trigger_error($user->lang('FPB_FEED_URL_INVALID') . adm_back_link($this->u_action), E_USER_WARNING);
 						}
 						$type = $current_state[$id]['type'];
-						foreach (array('forum_id' => array(0, 2147483647), 'user_id' => array(1, 2147483647), 'textlimit' => array(0, 1000000), 'timeout' => array(1, 60)) as $field => $limits)
+						foreach (array('forum_id' => array(0, 2147483647), 'user_id' => array(1, 2147483647), 'textlimit' => array(0, 1000000), 'timeout' => array(1, 60), 'max_new_items' => array(0, 1000000)) as $field => $limits)
 						{
 							if (!\ger\feedpostbot\classes\driver::valid_number($request->variable($id . '_' . $field, ''), $limits[0], $limits[1]))
 							{
@@ -171,6 +172,7 @@ class main_module
 							'user_id' => $request->variable($id . '_user_id', $user->data['user_id']),
 							'textlimit' => $request->variable($id . '_textlimit', 0),
 							'timeout' => $request->variable($id . '_timeout', 3),
+							'max_new_items' => $request->variable($id . '_max_new_items', 0),
 							'curdate' => strlen($request->variable($id . '_curdate', '')) > 0 ? 1 : 0,
 							'append_link' => strlen($request->variable($id . '_append_link', '')) > 0 ? 1 : 0,
 							'update_existing' => strlen($request->variable($id . '_update_existing', '')) > 0 ? 1 : 0,
@@ -235,6 +237,7 @@ class main_module
 					'USER_ID'	=> $source['user_id'],
 					'TEXTLIMIT'	=> $source['textlimit'],
 					'TIMEOUT'	=> $source['timeout'],
+					'MAX_NEW_ITEMS'	=> isset($source['max_new_items']) ? (int) $source['max_new_items'] : 0,
 					'S_CURDATE'	=> empty($source['curdate']) ? false : true,
 					'S_APPEND_LINK'	=> empty($source['append_link']) ? false : true,
 					'S_UPDATE_EXISTING'		=> !empty($source['update_existing']),

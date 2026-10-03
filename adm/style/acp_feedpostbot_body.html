@@ -90,6 +90,7 @@
 					<th>{{ lang('FPB_USER_ID') }}</th>
 					<th>{{ lang('FPB_TEXTLIMIT') }}</th>
 					<th>{{ lang('FPB_TIMEOUT') }}</th>
+					<th>{{ lang('FPB_MAX_NEW_ITEMS') }}</th>
 					<th>{{ lang('FPB_CURDATE') }}</th>
 					<th>{{ lang('FPB_APPEND_LINK') }}</th>
 					<th>{{ lang('FPB_UPDATES') }}</th>
@@ -112,6 +113,7 @@
 					<td class="text-center"><input type="number" min="0" name="{{ feed.ID }}_user_id" value="{{ feed.USER_ID }}" class="inputbox autowidth" size="4" /></td>
 					<td class="text-center"><input type="number" min="0" max="1000000" name="{{ feed.ID }}_textlimit" value="{{ feed.TEXTLIMIT }}" class="inputbox autowidth" size="5" /></td>
 					<td class="text-center"><input type="number" min="1" max="60" name="{{ feed.ID }}_timeout" value="{{ feed.TIMEOUT }}" class="inputbox autowidth" size="4" /></td>
+					<td class="text-center"><input type="number" min="0" max="1000000" name="{{ feed.ID }}_max_new_items" value="{{ feed.MAX_NEW_ITEMS }}" class="inputbox autowidth" size="4" title="{{ lang('FPB_MAX_NEW_ITEMS_EXPLAIN')|e('html_attr') }}" /></td>
 					<td class="text-center"><input type="checkbox" class="radio" name="{{ feed.ID }}_curdate"{% if feed.S_CURDATE %} checked="checked"{% endif %} title="{{ lang('FPB_CURDATE_EXPLAIN')|e('html_attr') }}" /></td>
 					<td class="text-center"><input type="checkbox" class="radio" name="{{ feed.ID }}_append_link"{% if feed.S_APPEND_LINK %} checked="checked"{% endif %} title="{{ lang('FPB_APPEND_LINK_EXPLAIN')|e('html_attr') }}" /></td>
 					<td style="white-space: nowrap;">
@@ -123,7 +125,7 @@
 				</tr>
 			{% else %}
 				<tr>
-					<td colspan="12" class="row3 text-center">{{ lang('FPB_NO_FEEDS') }}</td>
+					<td colspan="13" class="row3 text-center">{{ lang('FPB_NO_FEEDS') }}</td>
 				</tr>
 			{% endfor %}
 			</tbody>
@@ -178,22 +180,26 @@
 				<td>{{ lang('FPB_TIMEOUT_EXPLAIN') }}</td>
 			</tr>
 			<tr class="row2">
+				<td><strong>{{ lang('FPB_MAX_NEW_ITEMS') }}</strong></td>
+				<td>{{ lang('FPB_MAX_NEW_ITEMS_EXPLAIN') }}</td>
+			</tr>
+			<tr class="row1">
 				<td><strong>{{ lang('FPB_CURDATE') }}</strong></td>
 				<td>{{ lang('FPB_CURDATE_EXPLAIN') }}</td>
 			</tr>
-			<tr class="row1">
+			<tr class="row2">
 				<td><strong>{{ lang('FPB_APPEND_LINK') }}</strong></td>
 				<td>{{ lang('FPB_APPEND_LINK_EXPLAIN') }}</td>
 			</tr>
-			<tr class="row2">
+			<tr class="row1">
 				<td><strong>{{ lang('FPB_UPDATES') }}{{ lang('COLON') }} {{ lang('FPB_UPDATE_EXISTING') }}</strong></td>
 				<td>{{ lang('FPB_UPDATE_EXISTING_EXPLAIN') }}</td>
 			</tr>
-			<tr class="row1">
+			<tr class="row2">
 				<td><strong>{{ lang('FPB_UPDATES') }}{{ lang('COLON') }} {{ lang('FPB_UPDATE_REPLY') }}</strong></td>
 				<td>{{ lang('FPB_UPDATE_REPLY_EXPLAIN') }}</td>
 			</tr>
-			<tr class="row2">
+			<tr class="row1">
 				<td><strong>{{ lang('FPB_UPDATES') }}{{ lang('COLON') }} {{ lang('FPB_RECREATE_DELETED') }}</strong></td>
 				<td>{{ lang('FPB_RECREATE_DELETED_EXPLAIN') }}</td>
 			</tr>
