@@ -48,9 +48,20 @@ composer install --no-dev --optimize-autoloader
    - **Feed user ID:** The ID of the forum user account used as the topic author.
    - **Topic prefix:** Optional prefix prepended to topic titles (e.g. `[phpBB News]`).
    - **Text limit:** Set a character limit for post body excerpts (set `0` for full content).
+   - **Maximum new topics per run:** Upper limit on how many new topics this feed may create in one run (default `0` = unlimited). See [Limiting new topics per run](#limiting-new-topics-per-run).
    - **Local date/time:** Toggle whether post time uses the feed fetch time or original publication date.
    - **Append link:** Toggle appending the original article URL to the post.
 4. Set the **cron interval** (in seconds) for automated fetching, or click **Fetch all feeds manually** to test immediately.
+
+### Limiting new topics per run
+
+Each feed has a **Maximum new topics per run** setting. It is a safety bound that stops a feed from suddenly posting its whole visible history, for example when the feed is new to the bot, or when the item the bot last remembered has dropped out of the feed (as can happen after migrating an older installation that only stored a single "latest" marker).
+
+- `0` (the default, and the behaviour for feeds saved before this setting existed) means unlimited.
+- The limit counts only feed items the bot has not handled before, which would otherwise each create a new topic. Items it already knows are not counted and are processed as usual.
+- When a run finds more unseen items than the limit, the feed's own order decides which ones are kept: the items nearest the top of the feed (normally the newest) are posted. Publication dates are not used for this choice.
+- The remaining older unseen items are deliberately marked as handled and **forgotten, not queued**. They will not be posted on later runs. Items that appear in the feed afterwards are posted normally.
+- An item that an extension skips through an event still uses one of the run's slots, so the limit is an upper bound on topics created, not a guaranteed number.
 
 ## Support & Contributing
 

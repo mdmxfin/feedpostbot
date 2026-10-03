@@ -605,6 +605,7 @@ class driver
 					}
 				}
 			}
+			$this->consume_excess_new_items($items, $source);
 			// Inspect the entire feed: new items may be inserted below already known entries.
 			foreach (array_reverse($items) as $item)
 			{
@@ -656,6 +657,44 @@ class driver
 			$this->restore_user_context($context);
 		}
 		return $posted;
+	}
+
+	/**
+	 * Apply the per-feed "maximum new topics per run" cap
+	 *
+	 * The feed's own item order is the authority: the first unhandled items (the
+	 * newest/preferred ones) stay eligible for posting. Every further unhandled
+	 * item is marked handled without posting. Excess older new items are
+	 * intentionally consumed rather than deferred, because the setting is a flood
+	 * cap rather than a backlog queue. A limit of 0 (or no setting) is unlimited.
+	 *
+	 * @param array $items
+	 * @param array $source
+	 */
+	private function consume_excess_new_items(array $items, array &$source)
+	{
+		$limit = isset($source['max_new_items']) ? (int) $source['max_new_items'] : 0;
+		if ($limit <= 0)
+		{
+			return;
+		}
+		$admitted = array();
+		foreach ($items as $item)
+		{
+			$key = $this->item_key($item);
+			if (isset($source['handled'][$key]) || isset($admitted[$key]))
+			{
+				continue;
+			}
+			if (count($admitted) < $limit)
+			{
+				$admitted[$key] = true;
+			}
+			else
+			{
+				$source['handled'][$key] = true;
+			}
+		}
 	}
 
 	private function item_key(array $item)
@@ -965,7 +1004,8 @@ class driver
 		return $forum !== false && $forum >= 0 && $user !== false && !empty($this->user_data_cache[$user])
 			&& ($forum === 0 || (isset($this->forum_data_cache[$forum]) && (int) $this->forum_data_cache[$forum]['forum_type'] === FORUM_POST))
 			&& self::valid_number($source['timeout'], 1, http_client::MAX_TIMEOUT)
-			&& self::valid_number($source['textlimit'], 0, 1000000);
+			&& self::valid_number($source['textlimit'], 0, 1000000)
+			&& (!isset($source['max_new_items']) || self::valid_number($source['max_new_items'], 0, 1000000));
 	}
 
 	public static function valid_number($value, $min, $max)
