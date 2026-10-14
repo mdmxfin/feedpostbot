@@ -403,6 +403,25 @@ class memory_forum
 }
 
 /**
+ * HTTP client serving a fixed document without network access.
+ */
+class fake_http_client extends \ger\feedpostbot\classes\http_client
+{
+	protected $body;
+
+	public function __construct($body)
+	{
+		$this->body = (string) $body;
+	}
+
+	public function get($url, $timeout)
+	{
+		$this->final_url = $url;
+		return $this->body;
+	}
+}
+
+/**
  * Feed post bot driver wired to the in-memory stores.
  */
 class tracking_driver extends \ger\feedpostbot\classes\driver
@@ -418,10 +437,26 @@ class tracking_driver extends \ger\feedpostbot\classes\driver
 	public $functions_loaded = false;
 	public $functions_available = true;
 	public $loader_calls = 0;
+	/** @var string|null Feed document served by a fake HTTP client to the real parse_feed(); null returns $items */
+	public $raw_feed = null;
+	/** @var bool|null SimplePie availability; null uses the real loader */
+	public $simplepie = null;
+	public $http_requests = 0;
 
 	public function parse_feed($url, $type, $timeout = self::FEED_TIMEOUT_PARSE)
 	{
-		return $this->items;
+		return $this->raw_feed === null ? $this->items : parent::parse_feed($url, $type, $timeout);
+	}
+
+	protected function simplepie_available()
+	{
+		return $this->simplepie === null ? parent::simplepie_available() : $this->simplepie;
+	}
+
+	protected function create_http_client()
+	{
+		$this->http_requests++;
+		return new fake_http_client($this->raw_feed);
 	}
 
 	protected function create_lock()

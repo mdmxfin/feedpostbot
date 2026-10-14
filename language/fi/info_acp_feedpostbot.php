@@ -72,6 +72,7 @@ $lang = array_merge($lang, array(
 	'FPB_HTTP_UNSAFE'					=> 'Syötteen URL-osoite johtaa vaaralliseen tai ei-tuettuun kohteeseen.',
 	'FPB_HTTP_FAILED'					=> 'Syötettä ei voitu ladata pyynnön aika- ja kokorajoissa.',
 	'FPB_HTTP_TIMEOUT'					=> 'Syötteen pyyntö aikakatkaistiin.',
+	'FPB_SIMPLEPIE_MISSING'				=> 'SimplePie-kirjastoa ei voitu ladata, joten syötteitä ei voida lukea. Asenna laajennuksen riippuvuudet: composer install --no-dev hakemistossa ext/ger/feedpostbot.',
 	'FPB_SAVE_CONFLICT'					=> 'Syötteet muuttuivat tai käsittely on käynnissä. Lataa sivu uudelleen ja yritä tallentaa uudelleen.',
 	'FPB_LOCK_ACTIVE'					=> 'Syötteiden käsittely voi olla yhä käynnissä. Hylätyt lukot vapautetaan automaattisesti tunnin kuluttua.',
 	'FPB_ITEM_UPDATED_REPLY'			=> 'Uutinen päivitetty %s.',

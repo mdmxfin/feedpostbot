@@ -46,6 +46,11 @@ class main_module
 				// Another run (usually cron) is processing the feeds: this request did nothing.
 				trigger_error($user->lang('FPB_LOCK_ACTIVE') . adm_back_link($this->u_action), E_USER_WARNING);
 			}
+			if (!empty($result['dependency_missing']))
+			{
+				// No feed could be read: never report this as "no new items".
+				trigger_error($user->lang('FPB_SIMPLEPIE_MISSING') . adm_back_link($this->u_action), E_USER_WARNING);
+			}
 			if ($fetched > 0)
 			{
 				$message = $user->lang('FPB_ACP_FETCHED_ITEMS', $fetched);

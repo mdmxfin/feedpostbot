@@ -31,6 +31,9 @@ class driver
 	/** First retry delay of a failed update reply, doubled per failure up to the maximum (seconds). */
 	public const REPLY_RETRY_DELAY = 300;
 	public const REPLY_RETRY_MAX_DELAY = 86400;
+	/** A missing SimplePie library is logged at most once per this many seconds (config holds the last time). */
+	public const DEPENDENCY_LOG_INTERVAL = 86400;
+	public const CONFIG_DEPENDENCY_ERROR = 'feedpostbot_simplepie_error_time';
 
 	protected $config;
 	protected $config_text;
@@ -51,7 +54,9 @@ class driver
 	/** @var callable|null Called by post_message() right before submit_post() */
 	protected $submit_hook;
 	/** @var array Outcome of the last fetch_all(), see get_run_result() */
-	protected $run_result = array('created' => 0, 'updated' => 0, 'locked' => false);
+	protected $run_result = array('created' => 0, 'updated' => 0, 'locked' => false, 'dependency_missing' => false);
+	/** @var bool Whether the missing SimplePie library was already reported during this run */
+	protected $dependency_reported = false;
 	public $current_state;
 
 	/** @var array Cache for forum names */
@@ -161,7 +166,8 @@ class driver
 	 */
 	public function fetch_all()
 	{
-		$this->run_result = array('created' => 0, 'updated' => 0, 'locked' => false);
+		$this->run_result = array('created' => 0, 'updated' => 0, 'locked' => false, 'dependency_missing' => false);
+		$this->dependency_reported = false;
 		if (empty($this->current_state))
 		{
 			$this->init_current_state();
@@ -266,7 +272,8 @@ class driver
 	 * Outcome of the last fetch_all()
 	 *
 	 * created: topics created (including recreated permanently deleted topics), updated: first
-	 * posts of tracked topics edited in that run, locked: another run held the processing lock.
+	 * posts of tracked topics edited in that run, locked: another run held the processing lock,
+	 * dependency_missing: the SimplePie library could not be loaded, so no feed was read.
 	 *
 	 * @return array
 	 */
@@ -593,26 +600,15 @@ class driver
 	public function get_simplepie_instance($url, $timeout = self::FEED_TIMEOUT_DEFAULT, $raw_data = null)
 	{
 		$base_url = html_entity_decode($url, ENT_QUOTES, 'UTF-8');
-		if (!class_exists('\SimplePie\SimplePie') && !class_exists('\SimplePie'))
+		if (!$this->simplepie_available())
 		{
-			$autoloader = __DIR__ . '/../vendor/autoload.php';
-			if (file_exists($autoloader))
-			{
-				require_once $autoloader;
-			}
-			else if (file_exists($this->phpbb_root_path . 'ext/ger/feedpostbot/vendor/autoload.php'))
-			{
-				require_once $this->phpbb_root_path . 'ext/ger/feedpostbot/vendor/autoload.php';
-			}
-			else if (file_exists($this->phpbb_root_path . 'vendor/autoload.php'))
-			{
-				require_once $this->phpbb_root_path . 'vendor/autoload.php';
-			}
-		}
-
-		if (!class_exists('\SimplePie\SimplePie') && !class_exists('\SimplePie'))
-		{
+			$this->report_missing_simplepie($url);
 			return null;
+		}
+		if (!empty($this->config[self::CONFIG_DEPENDENCY_ERROR]))
+		{
+			// The library is back: a later outage is reported at once.
+			$this->config->delete(self::CONFIG_DEPENDENCY_ERROR, false);
 		}
 
 		if ($raw_data === null)
@@ -650,6 +646,66 @@ class driver
 		}
 
 		return $feed;
+	}
+
+	/**
+	 * Load SimplePie the way the extension does at runtime: an already registered autoloader
+	 * (phpBB's own), then the extension's Composer autoloader, then phpBB's vendor directory
+	 *
+	 * Public and static, so deployment checks can run the real loader without booting phpBB.
+	 *
+	 * @param string $phpbb_root_path
+	 * @return bool
+	 */
+	public static function load_simplepie($phpbb_root_path)
+	{
+		if (class_exists('\SimplePie\SimplePie') || class_exists('\SimplePie'))
+		{
+			return true;
+		}
+		foreach (array(__DIR__ . '/../vendor/autoload.php', $phpbb_root_path . 'ext/ger/feedpostbot/vendor/autoload.php', $phpbb_root_path . 'vendor/autoload.php') as $autoloader)
+		{
+			if (file_exists($autoloader))
+			{
+				require_once $autoloader;
+				break;
+			}
+		}
+		return class_exists('\SimplePie\SimplePie') || class_exists('\SimplePie');
+	}
+
+	/**
+	 * @return bool
+	 */
+	protected function simplepie_available()
+	{
+		return static::load_simplepie($this->phpbb_root_path);
+	}
+
+	/**
+	 * Without SimplePie no feed can be read: log it instead of reporting empty feeds
+	 *
+	 * Logged once per run and at most once per DEPENDENCY_LOG_INTERVAL, so a frequent cron does
+	 * not flood the error log. get_run_result() reports it on every run.
+	 *
+	 * @param string $url
+	 */
+	protected function report_missing_simplepie($url)
+	{
+		$this->run_result['dependency_missing'] = true;
+		if ($this->dependency_reported)
+		{
+			return;
+		}
+		$this->dependency_reported = true;
+		$now = time();
+		$last = isset($this->config[self::CONFIG_DEPENDENCY_ERROR]) ? (int) $this->config[self::CONFIG_DEPENDENCY_ERROR] : 0;
+		if ($last > $now - self::DEPENDENCY_LOG_INTERVAL && $last <= $now)
+		{
+			return;
+		}
+		$this->config->set(self::CONFIG_DEPENDENCY_ERROR, $now, false);
+		$this->log_feed_error($url, 'FPB_SIMPLEPIE_MISSING');
 	}
 
 	protected function create_http_client()

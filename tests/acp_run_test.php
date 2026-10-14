@@ -92,4 +92,12 @@ class acp_run_test extends fixtures\tracking_test_case
 		$this->driver->items = array($this->item('a'));
 		$this->assertSame('FPB_LOCK_ACTIVE', $this->fetch_all_from_acp());
 	}
+
+	public function test_missing_simplepie_is_reported_instead_of_no_new_items()
+	{
+		$this->driver->simplepie = false;
+		$this->driver->raw_feed = '<rss version="2.0"><channel><title>Feed</title></channel></rss>';
+		$this->assertSame('FPB_SIMPLEPIE_MISSING', $this->fetch_all_from_acp());
+		$this->assertSame(0, $this->driver->http_requests);
+	}
 }

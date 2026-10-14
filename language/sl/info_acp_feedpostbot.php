@@ -72,6 +72,7 @@ $lang = array_merge($lang, array(
 	'FPB_HTTP_UNSAFE'					=> 'URL vira kaže na nevaren ali nepodprt cilj.',
 	'FPB_HTTP_FAILED'					=> 'Vira ni bilo mogoče prenesti v okviru omejitev zahteve in velikosti.',
 	'FPB_HTTP_TIMEOUT'					=> 'Časovna omejitev zahteve za vir je potekla.',
+	'FPB_SIMPLEPIE_MISSING'				=> 'Knjižnice SimplePie ni bilo mogoče naložiti, zato ni mogoče prebrati nobenega vira. Namestite odvisnosti razširitve: composer install --no-dev v ext/ger/feedpostbot.',
 	'FPB_SAVE_CONFLICT'					=> 'Viri so se spremenili ali se obdelujejo. Osvežite stran in poskusite znova shraniti.',
 	'FPB_LOCK_ACTIVE'					=> 'Obdelava virov morda še poteka. Opuščene zaklepe sistem samodejno obnovi po eni uri.',
 	'FPB_ITEM_UPDATED_REPLY'			=> 'Ta novica je bila posodobljena %s.',

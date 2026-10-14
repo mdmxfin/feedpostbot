@@ -34,6 +34,11 @@ Run Composer in the extension directory to install required dependencies:
 composer install --no-dev --optimize-autoloader
 ```
 
+`vendor/` is not part of the repository, so repeat this after a fresh clone or when the extension directory is replaced. Without SimplePie no feed is read: the error log shows `FPB_SIMPLEPIE_MISSING` (at most once a day) and the ACP "Fetch all" reports it. Check from the phpBB root, as the web/cron user:
+```bash
+php -r 'require "vendor/autoload.php"; require "ext/ger/feedpostbot/classes/driver.php"; var_dump(\ger\feedpostbot\classes\driver::load_simplepie("./"));'
+```
+
 ### 4. Enable Extension
 1. Log into your phpBB **Admin Control Panel (ACP)**.
 2. Navigate to **Customise** > **Extension Management** > **Extensions**.

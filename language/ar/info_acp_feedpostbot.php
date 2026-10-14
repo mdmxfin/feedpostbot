@@ -73,6 +73,7 @@ $lang = array_merge($lang, array(
 	'FPB_HTTP_UNSAFE'				=> 'يشير رابط الخلاصة إلى وجهة غير آمنة أو غير مدعومة.',
 	'FPB_HTTP_FAILED'				=> 'تعذر تنزيل الخلاصة ضمن حدود الطلب والحجم.',
 	'FPB_HTTP_TIMEOUT'				=> 'انتهت مهلة طلب الخلاصة.',
+	'FPB_SIMPLEPIE_MISSING'			=> 'تعذر تحميل مكتبة SimplePie، لذا لا يمكن قراءة أي خلاصة. ثبّت اعتماديات الإضافة: composer install --no-dev في ext/ger/feedpostbot.',
 	'FPB_SAVE_CONFLICT'				=> 'تغيرت الخلاصات أو تجري معالجتها. أعد تحميل الصفحة وحاول الحفظ مرة أخرى.',
 	'FPB_LOCK_ACTIVE'				=> 'قد تكون معالجة الخلاصات ما زالت جارية. تتم استعادة الأقفال المتروكة تلقائياً بعد ساعة.',
 	'FPB_ITEM_UPDATED_REPLY'			=> 'تم تحديث هذا الخبر في %s.',

@@ -72,6 +72,7 @@ $lang = array_merge($lang, array(
 	'FPB_HTTP_UNSAFE'					=> 'The feed URL resolves to an unsafe or unsupported destination.',
 	'FPB_HTTP_FAILED'					=> 'The feed could not be downloaded within the request and size limits.',
 	'FPB_HTTP_TIMEOUT'					=> 'The feed request timed out.',
+	'FPB_SIMPLEPIE_MISSING'				=> 'The SimplePie library could not be loaded, so no feed can be read. Install the extension\'s dependencies: composer install --no-dev in ext/ger/feedpostbot.',
 	'FPB_SAVE_CONFLICT'					=> 'The feeds changed or processing is running. Reload this page and try saving again.',
 	'FPB_LOCK_ACTIVE'					=> 'Feed processing may still be running. Abandoned locks are recovered automatically after one hour.',
 	'FPB_ITEM_UPDATED_REPLY'			=> 'This news item was updated on %s.',
